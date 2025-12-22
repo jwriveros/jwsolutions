@@ -12,7 +12,7 @@ export default function Home() {
             <a href="#proceso" className="hover:text-primary transition-colors">Proceso</a>
           </div>
           <a 
-            href="https://wa.me/573000000000" // Reemplaza con tu número real
+            href="https://wa.me/573181757220?text=Hola%20JW%20Solutions,%20me%20gustaría%20agendar%20una%20llamada%20para%20conocer%20más%20sobre%20sus%20servicios." // Reemplaza con tu número real
             className="bg-dark text-white px-6 py-2.5 rounded-full text-sm font-semibold hover:bg-primary transition-all active:scale-95"
           >
             Empezar ahora
@@ -37,7 +37,7 @@ export default function Home() {
           <a href="#servicios" className="bg-primary text-white px-10 py-4 rounded-2xl font-bold text-lg shadow-xl shadow-blue-200 hover:scale-105 transition-transform text-center">
             Ver servicios
           </a>
-          <a href="https://wa.me/573000000000" className="bg-white border-2 border-slate-100 text-dark px-10 py-4 rounded-2xl font-bold text-lg hover:bg-slate-50 transition-colors text-center">
+          <a href="https://wa.me/573181757220?text=Hola%20JW%20Solutions,%20me%20gustaría%20agendar%20una%20llamada%20para%20conocer%20más%20sobre%20sus%20servicios." className="bg-white border-2 border-slate-100 text-dark px-10 py-4 rounded-2xl font-bold text-lg hover:bg-slate-50 transition-colors text-center">
             Agendar llamada
           </a>
         </div>
