@@ -1,0 +1,14 @@
+@import "tailwindcss";
+
+@theme {
+  /* Aquí definimos los colores de JW Solutions para Tailwind v4 */
+  --color-primary: #0061FF;
+  --color-dark: #0f172a;
+  
+  /* Puedes añadir fuentes o animaciones aquí si lo deseas */
+}
+
+:root {
+  background: white;
+  color: #0f172a;
+}
