@@ -126,7 +126,7 @@ export default function Home() {
           Únete a las empresas que ya están ahorrando horas de trabajo manual con nuestras soluciones.
         </p>
         <a 
-          href="https://wa.me/573181757220" 
+          href="https://wa.me/573181757220?text=Hola%20JW%20Solutions,%20me%20gustaría%20agendar%20una%20llamada%20para%20conocer%20más%20sobre%20sus%20servicios." 
           className="bg-primary hover:bg-blue-700 text-white px-8 py-4 rounded-full font-bold transition-all inline-block shadow-lg shadow-blue-500/20"
         >
           Hablar por WhatsApp
