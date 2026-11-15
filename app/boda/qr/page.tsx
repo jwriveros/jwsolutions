@@ -5,15 +5,30 @@ import { QRCodeCanvas, QRCodeSVG } from 'qrcode.react';
 
 export default function GeneradorQRBodaPage() {
   // ==========================================================================
-  // 1. PARÁMETROS CONFIGURABLES (ENLACE CORTO DE TU PROYECTO EN VERCEL)
+  // 1. PARÁMETROS CONFIGURABLES
   // ==========================================================================
-  const [urlGaleria, setUrlGaleria] = useState<string>('https://jw-solutions.vercel.app/dm');
-  const [colorQR, setColorQR] = useState<string>('#4a443f'); // Café/carbón elegante
+  const [urlGaleria, setUrlGaleria] = useState<string>('https://jwsolutions.agency/dm');
+  const [colorQR, setColorQR] = useState<string>('#4a443f');
+  const [copiado, setCopiado] = useState<boolean>(false);
+
   const canvasRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<HTMLDivElement>(null);
 
   // ==========================================================================
-  // 2. DESCARGAR COMO IMAGEN PNG (ALTA RESOLUCIÓN 1024x1024)
+  // 2. COPIAR ENLACE AL PORTAPAPELES
+  // ==========================================================================
+  const copiarEnlace = async () => {
+    try {
+      await navigator.clipboard.writeText(urlGaleria);
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 2500);
+    } catch (err) {
+      console.error('No se pudo copiar automáticamente:', err);
+    }
+  };
+
+  // ==========================================================================
+  // 3. DESCARGAR COMO IMAGEN PNG (ALTA RESOLUCIÓN)
   // ==========================================================================
   const descargarPNG = () => {
     const canvas = canvasRef.current?.querySelector('canvas');
@@ -27,7 +42,7 @@ export default function GeneradorQRBodaPage() {
   };
 
   // ==========================================================================
-  // 3. DESCARGAR COMO VECTOR SVG (PARA IMPRENTA / DISEÑO GRÁFICO)
+  // 4. DESCARGAR COMO VECTOR SVG (PARA IMPRENTA)
   // ==========================================================================
   const descargarSVG = () => {
     const svg = svgRef.current?.querySelector('svg');
@@ -63,14 +78,14 @@ export default function GeneradorQRBodaPage() {
           Diego <span className="text-[#b59870] text-4xl">&amp;</span> Magali
         </h1>
 
-        <p className="font-editorial italic text-lg text-[#7a7167] mt-1 mb-6">
-          Escanea para compartir tus fotos y videos
+        <p className="font-editorial italic text-lg text-[#7a7167] mt-1 mb-5">
+          Escanea el código o toca el enlace para entrar
         </p>
 
         {/* Código QR visible */}
         <div
           ref={canvasRef}
-          className="bg-[#fbf9f5] p-6 rounded-2xl border border-[#e0d7ca] inline-flex items-center justify-center shadow-inner mb-6"
+          className="bg-[#fbf9f5] p-6 rounded-2xl border border-[#e0d7ca] inline-flex items-center justify-center shadow-inner mb-4"
         >
           <QRCodeCanvas
             value={urlGaleria}
@@ -83,7 +98,27 @@ export default function GeneradorQRBodaPage() {
           />
         </div>
 
-        {/* Versión SVG oculta para descarga vectorial */}
+        {/* ENLACE DIRECTO CLICABLE + BOTÓN DE COPIAR */}
+        <div className="mb-6 flex flex-col items-center gap-2">
+          <a
+            href={urlGaleria}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm font-semibold text-[#55634f] hover:text-[#3d4738] underline underline-offset-4 decoration-[#b59870] break-all transition-colors"
+          >
+            {urlGaleria.replace(/^https?:\/\//, '')} ↗
+          </a>
+
+          <button
+            type="button"
+            onClick={copiarEnlace}
+            className="px-3.5 py-1 rounded-full bg-[#f5f0e8] hover:bg-[#ebe3d7] text-[#6e655c] text-[11px] font-medium uppercase tracking-wider transition-colors cursor-pointer"
+          >
+            {copiado ? '✓ ¡Enlace copiado!' : 'Copiar enlace'}
+          </button>
+        </div>
+
+        {/* Versión SVG oculta para exportación */}
         <div ref={svgRef} className="hidden">
           <QRCodeSVG
             value={urlGaleria}
@@ -95,11 +130,11 @@ export default function GeneradorQRBodaPage() {
           />
         </div>
 
-        {/* Panel de ajuste rápido */}
+        {/* Panel de personalización */}
         <div className="text-left space-y-3 mb-6 bg-[#fbf9f5] p-4 rounded-2xl border border-[#ece5da]">
           <div>
             <label className="block text-[10px] font-semibold uppercase tracking-wider text-[#7a7167] mb-1">
-              Enlace corto de destino
+              Editar URL de destino
             </label>
             <input
               type="url"
