@@ -4,11 +4,12 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
 // ============================================================================
-// 1. CONFIGURACIÓN DE SUPABASE (MANTÉN TUS CREDENCIALES AQUÍ)
+// 1. CONFIGURACIÓN DE SUPABASE (COLOCA AQUÍ TUS CREDENCIALES REALES)
 // ============================================================================
 const SUPABASE_URL = 'https://mwxsgpokbmcbtcrxhbpd.supabase.co'; // Ej: https://abcdefgh.supabase.co
 const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_76y-p3Bk8_pH6JiTzMFGIg_1GXIdgAr'; // Tu llave completa
 const MAX_MB = 50; // Límite de peso por archivo en Megabytes
+const MAX_ARCHIVOS_POR_TANDA = 10; // Cantidad máxima de archivos seleccionables a la vez
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
 
@@ -50,10 +51,11 @@ const AdornoFloral = ({ className = '' }: { className?: string }) => (
 );
 
 export default function GaleriaBodaPage() {
-  // Estados principales
+  // Estados principales (ahora 'archivos' es un arreglo File[] para selección múltiple)
   const [usuarioId, setUsuarioId] = useState<string | null>(null);
   const [nombre, setNombre] = useState<string>('');
-  const [archivo, setArchivo] = useState<File | null>(null);
+  const [archivos, setArchivos] = useState<File[]>([]);
+  const [progresoSubida, setProgresoSubida] = useState<string>('');
   const [recuerdos, setRecuerdos] = useState<Recuerdo[]>([]);
   const [filtro, setFiltro] = useState<'todos' | 'imagen' | 'video'>('todos');
   const [subiendo, setSubiendo] = useState<boolean>(false);
@@ -84,7 +86,7 @@ export default function GaleriaBodaPage() {
   );
 
   // ==========================================================================
-  // 2. OBTENER RECUERDOS (MEMORIZADO PARA REUTILIZAR EN RECONEXIONES)
+  // 2. OBTENER RECUERDOS
   // ==========================================================================
   const obtenerRecuerdos = useCallback(async () => {
     const { data, error } = await supabase
@@ -103,7 +105,7 @@ export default function GaleriaBodaPage() {
   }, []);
 
   // ==========================================================================
-  // 3. INICIALIZAR SESIÓN, REALTIME Y RECONEXIÓN MÓVIL (iOS / ANDROID)
+  // 3. INICIALIZAR SESIÓN, REALTIME Y RECONEXIÓN MÓVIL
   // ==========================================================================
   useEffect(() => {
     const nombreGuardado = localStorage.getItem('boda_invitado_nombre');
@@ -135,7 +137,6 @@ export default function GaleriaBodaPage() {
 
     inicializar();
 
-    // Suscripción en tiempo real (cuando alguien sube o borra un recuerdo)
     const canal = supabase
       .channel('cambios-boda-diego-magali')
       .on(
@@ -147,14 +148,12 @@ export default function GaleriaBodaPage() {
       )
       .subscribe();
 
-    // Optimización Móvil: Al desbloquear el celular o volver a la pestaña, refrescar datos
     const manejarVisibilidad = () => {
       if (document.visibilityState === 'visible') {
         obtenerRecuerdos();
       }
     };
 
-    // Optimización Escritorio: Cerrar visor con tecla Escape
     const manejarTeclado = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setFotoAmpliada(null);
@@ -173,7 +172,30 @@ export default function GaleriaBodaPage() {
   }, [obtenerRecuerdos, mostrarAlerta]);
 
   // ==========================================================================
-  // 4. SUBIR FOTO O VIDEO
+  // 4. MANEJAR SELECCIÓN MÚLTIPLE DE ARCHIVOS
+  // ==========================================================================
+  const manejarSeleccionArchivos = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const listaArchivos = Array.from(e.target.files || []);
+    if (listaArchivos.length === 0) {
+      setArchivos([]);
+      return;
+    }
+
+    if (listaArchivos.length > MAX_ARCHIVOS_POR_TANDA) {
+      mostrarAlerta(
+        'Límite por envío',
+        `Puedes subir hasta ${MAX_ARCHIVOS_POR_TANDA} fotos o videos a la vez. Se seleccionaron los primeros ${MAX_ARCHIVOS_POR_TANDA}.`,
+        'advertencia'
+      );
+      setArchivos(listaArchivos.slice(0, MAX_ARCHIVOS_POR_TANDA));
+      return;
+    }
+
+    setArchivos(listaArchivos);
+  };
+
+  // ==========================================================================
+  // 5. SUBIR MÚLTIPLES FOTOS O VIDEOS SECUENCIALMENTE
   // ==========================================================================
   const manejarSubida = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -181,15 +203,15 @@ export default function GaleriaBodaPage() {
     if (!nombre.trim()) {
       mostrarAlerta(
         'Falta tu nombre',
-        'Por favor, escribe tu nombre para firmar tu recuerdo.',
+        'Por favor, escribe tu nombre para firmar tus recuerdos.',
         'advertencia'
       );
       return;
     }
-    if (!archivo) {
+    if (archivos.length === 0) {
       mostrarAlerta(
-        'Selecciona un archivo',
-        'Elige una foto o video de tu galería para compartir.',
+        'Selecciona archivos',
+        'Elige una o varias fotos o videos de tu galería para compartir.',
         'advertencia'
       );
       return;
@@ -199,11 +221,14 @@ export default function GaleriaBodaPage() {
       return;
     }
 
-    const tamanoMB = archivo.size / (1024 * 1024);
-    if (tamanoMB > MAX_MB) {
+    // Filtrar archivos que cumplan con el tamaño máximo permitido
+    const archivosValidos = archivos.filter((f) => f.size / (1024 * 1024) <= MAX_MB);
+    const omitidosPorPeso = archivos.length - archivosValidos.length;
+
+    if (archivosValidos.length === 0) {
       mostrarAlerta(
-        'Archivo muy pesado',
-        `El archivo pesa ${tamanoMB.toFixed(1)} MB. El límite máximo es ${MAX_MB} MB.`,
+        'Archivos muy pesados',
+        `Ninguno de los archivos seleccionados cumple el límite de ${MAX_MB} MB.`,
         'advertencia'
       );
       return;
@@ -211,75 +236,108 @@ export default function GaleriaBodaPage() {
 
     localStorage.setItem('boda_invitado_nombre', nombre.trim());
     setSubiendo(true);
-    mostrarAlerta(
-      'Subiendo recuerdo...',
-      'Mantén esta pantalla abierta hasta que termine la carga.',
-      'info',
-      false
-    );
+
+    let subidosConExito = 0;
+    const nuevosRegistros: Recuerdo[] = [];
 
     try {
-      const extension = archivo.name.split('.').pop() || 'jpg';
-      const rutaArchivo = `${usuarioId}/${Date.now()}.${extension}`;
-      const tipoArchivo = archivo.type.startsWith('video/') ? 'video' : 'imagen';
+      for (let i = 0; i < archivosValidos.length; i++) {
+        const archivoActual = archivosValidos[i];
+        const textoProgreso = `Subiendo ${i + 1} de ${archivosValidos.length}...`;
+        setProgresoSubida(textoProgreso);
+        mostrarAlerta(
+          textoProgreso,
+          'Mantén esta pantalla abierta hasta que terminen de guardarse.',
+          'info',
+          false
+        );
 
-      const { error: errorStorage } = await supabase.storage
-        .from('galeria-boda')
-        .upload(rutaArchivo, archivo, {
-          cacheControl: '3600',
-          upsert: false,
-        });
+        const extension = archivoActual.name.split('.').pop() || 'jpg';
+        // Incluimos el índice 'i' para garantizar nombres únicos incluso en el mismo milisegundo
+        const rutaArchivo = `${usuarioId}/${Date.now()}-${i}.${extension}`;
+        const tipoArchivo = archivoActual.type.startsWith('video/') ? 'video' : 'imagen';
 
-      if (errorStorage) throw errorStorage;
+        const { error: errorStorage } = await supabase.storage
+          .from('galeria-boda')
+          .upload(rutaArchivo, archivoActual, {
+            cacheControl: '3600',
+            upsert: false,
+          });
 
-      const { data: urlData } = supabase.storage
-        .from('galeria-boda')
-        .getPublicUrl(rutaArchivo);
+        if (errorStorage) {
+          console.error(`Error subiendo archivo ${i + 1}:`, errorStorage);
+          continue; // Si uno falla, continúa con los demás
+        }
 
-      const { data: nuevoRegistro, error: errorDB } = await supabase
-        .from('recuerdos')
-        .insert([
-          {
-            nombre_invitado: nombre.trim(),
-            url_archivo: urlData.publicUrl,
-            ruta_storage: rutaArchivo,
-            tipo_archivo: tipoArchivo,
-            user_id: usuarioId,
-          },
-        ])
-        .select()
-        .single();
+        const { data: urlData } = supabase.storage
+          .from('galeria-boda')
+          .getPublicUrl(rutaArchivo);
 
-      if (errorDB) throw errorDB;
+        const { data: registroInsertado, error: errorDB } = await supabase
+          .from('recuerdos')
+          .insert([
+            {
+              nombre_invitado: nombre.trim(),
+              url_archivo: urlData.publicUrl,
+              ruta_storage: rutaArchivo,
+              tipo_archivo: tipoArchivo,
+              user_id: usuarioId,
+            },
+          ])
+          .select()
+          .single();
 
-      // Actualización inmediata en pantalla sin esperar al evento Realtime
-      if (nuevoRegistro) {
-        setRecuerdos((prev) => [nuevoRegistro as Recuerdo, ...prev]);
+        if (!errorDB && registroInsertado) {
+          subidosConExito++;
+          nuevosRegistros.push(registroInsertado as Recuerdo);
+        }
       }
 
-      setArchivo(null);
+      // Actualizar la galería en pantalla inmediatamente
+      if (nuevosRegistros.length > 0) {
+        setRecuerdos((prev) => [...nuevosRegistros.reverse(), ...prev]);
+      }
+
+      // Limpiar selección
+      setArchivos([]);
       const inputFile = document.getElementById('input-archivo') as HTMLInputElement;
       if (inputFile) inputFile.value = '';
 
-      mostrarAlerta(
-        '¡Gracias por compartir!',
-        'Tu recuerdo ya es visible para todos los invitados.',
-        'exito'
-      );
+      // Mensaje final detallado
+      if (subidosConExito > 0) {
+        const avisoExtra =
+          omitidosPorPeso > 0
+            ? ` (${omitidosPorPeso} se omitieron por superar los ${MAX_MB} MB).`
+            : '.';
+        mostrarAlerta(
+          subidosConExito === 1
+            ? '¡1 recuerdo compartido!'
+            : `¡${subidosConExito} recuerdos compartidos!`,
+          `Ya son visibles en el álbum de Diego & Magali${avisoExtra}`,
+          'exito'
+        );
+      } else {
+        mostrarAlerta(
+          'No se pudieron subir',
+          'Verifica tu conexión a internet e intenta nuevamente.',
+          'error'
+        );
+      }
     } catch (error) {
-      console.error('Error al subir:', error);
+      console.error('Error general en subida múltiple:', error);
       mostrarAlerta(
-        'No se pudo subir',
-        'Verifica tu conexión a internet e intenta nuevamente.',
+        'Error inesperado',
+        'Ocurrió un problema durante la carga. Intenta de nuevo.',
         'error'
       );
     } finally {
       setSubiendo(false);
+      setProgresoSubida('');
     }
   };
 
   // ==========================================================================
-  // 5. DESCARGA DIRECTA COMPATIBLE CON IPHONE, ANDROID Y PC
+  // 6. DESCARGA DIRECTA COMPATIBLE CON IPHONE, ANDROID Y PC
   // ==========================================================================
   const descargarArchivo = async (item: Recuerdo) => {
     setDescargandoId(item.id);
@@ -288,7 +346,8 @@ export default function GaleriaBodaPage() {
       const blob = await respuesta.blob();
       const urlBlob = window.URL.createObjectURL(blob);
       const enlace = document.createElement('a');
-      const extension = item.ruta_storage.split('.').pop() || (item.tipo_archivo === 'video' ? 'mp4' : 'jpg');
+      const extension =
+        item.ruta_storage.split('.').pop() || (item.tipo_archivo === 'video' ? 'mp4' : 'jpg');
 
       enlace.href = urlBlob;
       enlace.download = `Boda-Diego-Magali-${item.nombre_invitado.replace(/\s+/g, '_')}.${extension}`;
@@ -298,7 +357,6 @@ export default function GaleriaBodaPage() {
       window.URL.revokeObjectURL(urlBlob);
     } catch (error) {
       console.error('Error descargando archivo:', error);
-      // Respaldo si el navegador bloquea la descarga directa
       window.open(item.url_archivo, '_blank', 'noopener,noreferrer');
     } finally {
       setDescargandoId(null);
@@ -306,7 +364,7 @@ export default function GaleriaBodaPage() {
   };
 
   // ==========================================================================
-  // 6. ELIMINAR RECUERDO PROPIO
+  // 7. ELIMINAR RECUERDO PROPIO
   // ==========================================================================
   const confirmarEliminacion = async () => {
     if (!recuerdoAEliminar) return;
@@ -324,7 +382,6 @@ export default function GaleriaBodaPage() {
         .from('galeria-boda')
         .remove([recuerdoAEliminar.ruta_storage]);
 
-      // Actualización optimista inmediata
       setRecuerdos((prev) => prev.filter((r) => r.id !== recuerdoAEliminar.id));
       mostrarAlerta('Recuerdo eliminado', 'El archivo ha sido retirado del álbum.', 'exito');
     } catch (error) {
@@ -349,7 +406,7 @@ export default function GaleriaBodaPage() {
   };
 
   // ==========================================================================
-  // 7. INTERFAZ VISUAL RESPONSIVE (MÓVIL, TABLET Y ESCRITORIO)
+  // 8. INTERFAZ VISUAL RESPONSIVE
   // ==========================================================================
   return (
     <div className="min-h-screen bg-[#fbf9f5] text-[#4a443f] pb-[calc(3rem+env(safe-area-inset-bottom))] relative overflow-x-hidden selection:bg-[#e8dfd1]">
@@ -358,11 +415,10 @@ export default function GaleriaBodaPage() {
         .font-script { font-family: 'Great Vibes', cursive; }
         .font-editorial { font-family: 'Cormorant Garamond', Georgia, serif; }
         .font-body { font-family: 'Montserrat', sans-serif; }
-        /* Evita retrasos táctiles de 300ms en iOS y Android */
         button, a, input { touch-action: manipulation; }
       `}</style>
 
-      {/* NOTIFICACIÓN FLOTANTE (TOAST) ADAPTADA A NOTCH DE IPHONE */}
+      {/* NOTIFICACIÓN FLOTANTE (TOAST) */}
       {notificacion && (
         <div className="fixed top-[calc(1rem+env(safe-area-inset-top))] left-1/2 -translate-x-1/2 z-50 w-[92%] max-w-md font-body">
           <div
@@ -491,9 +547,9 @@ export default function GaleriaBodaPage() {
         </div>
       </header>
 
-      {/* CONTENEDOR PRINCIPAL RESPONSIVE (MÓVIL -> TABLET -> MONITOR) */}
+      {/* CONTENEDOR PRINCIPAL */}
       <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8 font-body">
-        {/* FORMULARIO DE SUBIDA */}
+        {/* FORMULARIO DE SUBIDA MÚLTIPLE */}
         <form
           onSubmit={manejarSubida}
           className="max-w-3xl mx-auto bg-white p-5 sm:p-8 rounded-3xl shadow-[0_4px_25px_rgba(92,81,70,0.05)] border border-[#ebe3d7] flex flex-col gap-5 mb-8"
@@ -509,7 +565,6 @@ export default function GaleriaBodaPage() {
               <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#7a7167] mb-1.5">
                 Tu Nombre o Familia
               </label>
-              {/* text-base (16px) evita el auto-zoom molesto en iPhone */}
               <input
                 type="text"
                 placeholder="Ej: Familia Gómez"
@@ -522,24 +577,52 @@ export default function GaleriaBodaPage() {
 
             <div>
               <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#7a7167] mb-1.5">
-                Foto o Video (Máx. {MAX_MB} MB)
+                Fotos o Videos (Hasta {MAX_ARCHIVOS_POR_TANDA} a la vez)
               </label>
               <input
                 id="input-archivo"
                 type="file"
+                multiple
                 accept="image/*,video/*"
-                onChange={(e) => setArchivo(e.target.files?.[0] || null)}
+                onChange={manejarSeleccionArchivos}
                 className="w-full min-h-[46px] text-xs sm:text-sm text-[#6e655c] bg-[#fbf9f5] border border-[#e0d7ca] rounded-xl p-1.5 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-[#8d9b87]/15 file:text-[#55634f] hover:file:bg-[#8d9b87]/25 cursor-pointer"
               />
             </div>
           </div>
 
+          {/* Resumen visual de archivos seleccionados antes de subir */}
+          {archivos.length > 0 && (
+            <div className="bg-[#fbf9f5] border border-[#e6dfd5] rounded-2xl px-4 py-3 flex items-center justify-between text-xs text-[#5c5146]">
+              <span>
+                📎 <strong>{archivos.length}</strong>{' '}
+                {archivos.length === 1 ? 'archivo seleccionado' : 'archivos seleccionados'}
+              </span>
+              {!subiendo && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setArchivos([]);
+                    const inputFile = document.getElementById('input-archivo') as HTMLInputElement;
+                    if (inputFile) inputFile.value = '';
+                  }}
+                  className="text-[#b85c5c] hover:underline font-medium cursor-pointer"
+                >
+                  Quitar selección
+                </button>
+              )}
+            </div>
+          )}
+
           <button
             type="submit"
             disabled={subiendo}
-            className="w-full sm:w-auto sm:min-w-[240px] sm:mx-auto min-h-[48px] bg-[#7c8c75] hover:bg-[#677661] active:scale-98 disabled:bg-[#d6d1ca] text-white font-medium text-xs uppercase tracking-[0.18em] py-3.5 px-8 rounded-full transition-all cursor-pointer shadow-sm"
+            className="w-full sm:w-auto sm:min-w-[260px] sm:mx-auto min-h-[48px] bg-[#7c8c75] hover:bg-[#677661] active:scale-98 disabled:bg-[#d6d1ca] text-white font-medium text-xs uppercase tracking-[0.18em] py-3.5 px-8 rounded-full transition-all cursor-pointer shadow-sm"
           >
-            {subiendo ? 'Guardando recuerdo...' : 'Subir al álbum'}
+            {subiendo
+              ? progresoSubida || 'Subiendo...'
+              : archivos.length > 1
+              ? `Subir ${archivos.length} recuerdos`
+              : 'Subir al álbum'}
           </button>
         </form>
 
@@ -550,7 +633,8 @@ export default function GaleriaBodaPage() {
               Presiona una foto para verla más grande...
             </p>
             <span className="text-[11px] uppercase tracking-widest text-[#a3998e]">
-              {recuerdos.length} {recuerdos.length === 1 ? 'recuerdo compartido' : 'recuerdos compartidos'}
+              {recuerdos.length}{' '}
+              {recuerdos.length === 1 ? 'recuerdo compartido' : 'recuerdos compartidos'}
             </span>
           </div>
 
@@ -571,7 +655,7 @@ export default function GaleriaBodaPage() {
           </div>
         </div>
 
-        {/* CUADRÍCULA ADAPTABLE: 1 col (Móvil) | 2 cols (Tablet) | 3 cols (Laptop) | 4 cols (Monitor grande) */}
+        {/* CUADRÍCULA ADAPTABLE */}
         {cargandoGaleria ? (
           <div className="text-center py-16">
             <p className="font-editorial italic text-xl text-[#8c8277] animate-pulse">
@@ -604,7 +688,6 @@ export default function GaleriaBodaPage() {
                     }`}
                   >
                     {item.tipo_archivo === 'video' ? (
-                      /* #t=0.001 fuerza a Safari en iPhone a renderizar el primer fotograma del video */
                       <video
                         src={`${item.url_archivo}#t=0.001`}
                         controls
